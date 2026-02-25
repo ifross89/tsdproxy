@@ -127,34 +127,58 @@ func (l *lanListener) unregister(hostname string) {
 func (l *lanListener) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	host := normalizeLANHostname(r.Host)
 	if host == "" {
+		l.log.Debug().Str("rawHost", r.Host).Msg("LANListener missing/invalid host header")
 		http.Error(w, "missing host", http.StatusBadRequest)
 		return
 	}
 
 	l.mtx.RLock()
+	routeCount := len(l.routes)
 	route, ok := l.routes[host]
 	l.mtx.RUnlock()
 	if !ok || route.handler == nil {
+		l.log.Debug().
+			Str("host", host).
+			Str("method", r.Method).
+			Str("path", r.URL.RequestURI()).
+			Int("routeCount", routeCount).
+			Msg("LANListener unknown host")
 		http.Error(w, "unknown host", http.StatusMisdirectedRequest)
 		return
 	}
 
+	l.log.Debug().
+		Str("host", host).
+		Str("method", r.Method).
+		Str("path", r.URL.RequestURI()).
+		Msg("LANListener routing request")
 	route.handler.ServeHTTP(w, r)
 }
 
 func (l *lanListener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	host := normalizeLANHostname(hello.ServerName)
 	if host == "" {
+		l.log.Debug().Str("serverName", hello.ServerName).Msg("LANListener missing SNI")
 		return nil, errors.New("missing SNI server name")
 	}
 
 	l.mtx.RLock()
+	routeCount := len(l.routes)
 	route, ok := l.routes[host]
 	l.mtx.RUnlock()
 	if !ok || route.proxy == nil {
+		l.log.Debug().
+			Str("serverName", hello.ServerName).
+			Str("normalizedHost", host).
+			Int("routeCount", routeCount).
+			Msg("LANListener unknown SNI host")
 		return nil, errors.New("unknown SNI host")
 	}
 
+	l.log.Debug().
+		Str("serverName", hello.ServerName).
+		Str("normalizedHost", host).
+		Msg("LANListener selecting TLS certificate")
 	return route.proxy.GetTLSCertificate(host)
 }
 

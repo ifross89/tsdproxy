@@ -258,6 +258,14 @@ func (c *container) getTargetURL(iPort *url.URL) (*url.URL, error) {
 
 	internalPort := iPort.Port()
 	publishedPort := c.getPublishedPort(internalPort)
+	c.log.Debug().
+		Str("scheme", iPort.Scheme).
+		Str("internalPort", internalPort).
+		Str("publishedPort", publishedPort).
+		Bool("autodetect", c.autodetect).
+		Str("defaultTargetHostname", c.defaultTargetHostname).
+		Any("availablePorts", c.ports).
+		Msg("resolving container target URL")
 
 	if internalPort == "" && publishedPort == "" {
 		return nil, ErrNoPortFoundInContainer
@@ -287,10 +295,19 @@ func (c *container) getTargetURL(iPort *url.URL) (*url.URL, error) {
 
 	// auto detect failed or disabled, use published port
 	if publishedPort == "" {
+		c.log.Debug().
+			Str("internalPort", internalPort).
+			Any("availablePorts", c.ports).
+			Msg("published port not found for configured internal port")
 		return nil, ErrNoPortFoundInContainer
 	}
-
-	return url.Parse(iPort.Scheme + "://" + c.defaultTargetHostname + ":" + publishedPort)
+	target := iPort.Scheme + "://" + c.defaultTargetHostname + ":" + publishedPort
+	c.log.Debug().
+		Str("target", target).
+		Str("internalPort", internalPort).
+		Str("publishedPort", publishedPort).
+		Msg("using published port target URL")
+	return url.Parse(target)
 }
 
 // getPublishedPort method returns the container port

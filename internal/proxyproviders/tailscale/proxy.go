@@ -117,6 +117,7 @@ func (p *Proxy) GetTLSCertificate(serverName string) (*tls.Certificate, error) {
 	lc := p.lc
 	p.mtx.Unlock()
 	if ok && cert != nil {
+		p.log.Debug().Str("serverName", serverName).Msg("tailscale cert cache hit")
 		return cert, nil
 	}
 
@@ -124,8 +125,10 @@ func (p *Proxy) GetTLSCertificate(serverName string) (*tls.Certificate, error) {
 		return nil, errors.New("tailscale local client not ready")
 	}
 
+	p.log.Debug().Str("serverName", serverName).Msg("tailscale fetching cert pair")
 	certPEM, keyPEM, err := lc.CertPair(ctx, serverName)
 	if err != nil {
+		p.log.Error().Err(err).Str("serverName", serverName).Msg("tailscale cert fetch failed")
 		return nil, err
 	}
 
@@ -141,6 +144,7 @@ func (p *Proxy) GetTLSCertificate(serverName string) (*tls.Certificate, error) {
 	p.certs[serverName] = &parsed
 	p.mtx.Unlock()
 
+	p.log.Debug().Str("serverName", serverName).Msg("tailscale cert cached")
 	return &parsed, nil
 }
 
@@ -231,6 +235,11 @@ func (p *Proxy) setStatus(status model.ProxyStatus, url string, authURL string) 
 func (p *Proxy) getTLSCertificates() {
 	p.log.Info().Msg("Generating TLS certificate")
 	certDomains := p.tsServer.CertDomains()
+	p.log.Debug().Strs("domains", certDomains).Msg("tailscale cert domains")
+	if len(certDomains) == 0 {
+		p.log.Error().Msg("no tailscale cert domains available")
+		return
+	}
 	if _, _, err := p.lc.CertPair(p.ctx, certDomains[0]); err != nil {
 		p.log.Error().Err(err).Msg("error to get TLS certificates")
 		return

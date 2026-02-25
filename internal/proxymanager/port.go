@@ -50,9 +50,16 @@ func newPortProxy(
 	reverseProxy := &httputil.ReverseProxy{
 		Transport: tr,
 		Rewrite: func(r *httputil.ProxyRequest) {
-			r.SetURL(pconfig.GetFirstTarget())
+			targetURL := pconfig.GetFirstTarget()
+			r.SetURL(targetURL)
 			r.Out.Host = r.In.Host
 			r.Out.Header["X-Forwarded-For"] = r.In.Header["X-Forwarded-For"]
+			log.Debug().
+				Str("method", r.In.Method).
+				Str("host", r.In.Host).
+				Str("path", r.In.URL.RequestURI()).
+				Str("target", targetURL.String()).
+				Msg("proxy rewrite")
 
 			if user, ok := model.WhoisFromContext(r.In.Context()); ok {
 				r.Out.Header.Set(consts.HeaderUsername, user.Username)
@@ -61,6 +68,26 @@ func newPortProxy(
 			}
 
 			r.SetXForwarded()
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			log.Error().
+				Err(err).
+				Str("method", r.Method).
+				Str("host", r.Host).
+				Str("path", r.URL.RequestURI()).
+				Str("target", pconfig.GetFirstTarget().String()).
+				Msg("upstream proxy error")
+			http.Error(w, "Bad Gateway", http.StatusBadGateway)
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			log.Debug().
+				Int("status", resp.StatusCode).
+				Str("method", resp.Request.Method).
+				Str("host", resp.Request.Host).
+				Str("path", resp.Request.URL.RequestURI()).
+				Str("target", pconfig.GetFirstTarget().String()).
+				Msg("upstream response")
+			return nil
 		},
 	}
 
