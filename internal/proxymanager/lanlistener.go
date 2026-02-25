@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -98,30 +99,53 @@ func (l *lanListener) register(proxy *Proxy) error {
 		return err
 	}
 
-	host := normalizeLANHostname(proxy.Config.Hostname)
-	if host == "" {
+	shortHost := normalizeLANHostname(proxy.Config.Hostname)
+	if shortHost == "" {
 		return errors.New("invalid proxy hostname for LANListener")
 	}
 
+	aliases := map[string]struct{}{
+		shortHost: {},
+	}
+
+	if rawURL := strings.TrimSpace(proxy.GetURL()); rawURL != "" && rawURL != "https://" {
+		if u, err := url.Parse(rawURL); err == nil {
+			if fqdn := normalizeLANHostname(u.Hostname()); fqdn != "" {
+				aliases[fqdn] = struct{}{}
+			}
+		}
+	}
+
 	l.mtx.Lock()
-	l.routes[host] = lanRoute{proxy: proxy, handler: handler}
+	for host := range aliases {
+		l.routes[host] = lanRoute{proxy: proxy, handler: handler}
+	}
 	l.mtx.Unlock()
 
-	l.log.Info().Str("hostname", host).Msg("LANListener registered hostname")
+	for host := range aliases {
+		l.log.Info().Str("hostname", host).Msg("LANListener registered hostname")
+	}
 	return nil
 }
 
-func (l *lanListener) unregister(hostname string) {
-	host := normalizeLANHostname(hostname)
-	if host == "" {
+func (l *lanListener) unregisterProxy(proxy *Proxy) {
+	if proxy == nil {
 		return
 	}
 
 	l.mtx.Lock()
-	delete(l.routes, host)
+	var removed []string
+	for host, route := range l.routes {
+		if route.proxy == proxy {
+			delete(l.routes, host)
+			removed = append(removed, host)
+		}
+	}
 	l.mtx.Unlock()
 
-	l.log.Info().Str("hostname", host).Msg("LANListener unregistered hostname")
+	for _, host := range removed {
+		l.log.Info().Str("hostname", host).Msg("LANListener unregistered hostname")
+	}
 }
 
 func (l *lanListener) serveHTTP(w http.ResponseWriter, r *http.Request) {

@@ -257,7 +257,7 @@ func (pm *ProxyManager) removeProxy(hostname string) {
 		return
 	}
 
-	pm.unregisterLANProxy(hostname)
+	pm.unregisterLANProxy(proxy)
 	proxy.Close()
 
 	pm.mtx.Lock()
@@ -310,7 +310,7 @@ func (pm *ProxyManager) registerLANProxy(proxy *Proxy) error {
 	return ll.register(proxy)
 }
 
-func (pm *ProxyManager) unregisterLANProxy(hostname string) {
+func (pm *ProxyManager) unregisterLANProxy(proxy *Proxy) {
 	pm.mtx.RLock()
 	ll := pm.lanListener
 	pm.mtx.RUnlock()
@@ -318,7 +318,7 @@ func (pm *ProxyManager) unregisterLANProxy(hostname string) {
 		return
 	}
 
-	ll.unregister(hostname)
+	ll.unregisterProxy(proxy)
 }
 
 // eventStart method starts a Proxy from a event trigger
@@ -384,6 +384,11 @@ func (pm *ProxyManager) newAndStartProxy(name string, proxyConfig *model.Config)
 
 	// any status change in proxy will be broadcasted
 	p.onUpdate = func(event model.ProxyEvent) {
+		if event.Status == model.ProxyStatusRunning {
+			if err := pm.registerLANProxy(p); err != nil {
+				pm.log.Error().Err(err).Str("proxy", p.Config.Hostname).Msg("Error refreshing LANListener routes")
+			}
+		}
 		pm.broadcastStatusEvents(event)
 	}
 
