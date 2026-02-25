@@ -167,5 +167,9 @@ lanListener:
 - LAN DNS should point the same Tailscale FQDNs to the host running TSDProxy.
 - `LANListener` currently supports HTTPS on port `443` only.
 - Each proxied target must have exactly one non-redirect backend endpoint.
+- For multi-port Docker containers (for example AdGuard), use explicit
+  `tsdproxy.port.1` labels and set `tsdproxy.autodetect: "false"`.
+- With `tsdproxy.autodetect: "false"`, publish the target container port on the
+  host (example `18000:80`) so TSDProxy can map and reach it.
 
 {{% /steps %}}

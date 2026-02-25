@@ -138,11 +138,19 @@ labels:
 Defaults to true, if your having problem with the internal network interfaces
 autodetection, set to false.
 
+When disabled, TSDProxy uses the configured container port and maps it to the
+container's published host port. Make sure the target port is published on the
+host.
+
 ```yaml
 labels:
   tsdproxy.enable: "true"
   tsdproxy.autodetect: "false"
 ```
+
+For multi-port containers (for example AdGuard DNS + web UI), disabling
+autodetection and setting the target port explicitly helps avoid selecting the
+wrong backend port.
 
 ### tsdproxy.scheme
 

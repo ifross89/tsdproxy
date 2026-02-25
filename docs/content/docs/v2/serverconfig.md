@@ -174,5 +174,9 @@ Notes:
 - Only HTTPS on port `443` is supported.
 - LAN DNS should resolve your Tailscale FQDNs to the TSDProxy host.
 - Each proxied target must have exactly one non-redirect backend endpoint.
+- For multi-port Docker containers (for example AdGuard), prefer explicit
+  `tsdproxy.port.1` labels and `tsdproxy.autodetect: "false"`.
+- When `tsdproxy.autodetect` is disabled, the configured container port must be
+  published on the host (example `18000:80`) so TSDProxy can reach it.
 
 {{% /steps %}}

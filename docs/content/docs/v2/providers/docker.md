@@ -51,6 +51,10 @@ labels:
 Defaults to true, if your having problem with the internal network interfaces
 autodetection, set to false.
 
+When disabled, TSDProxy uses the container port you configured in
+`tsdproxy.port.<index>` and maps it to the container's published host port.
+For this reason, the target container port must be published on the host.
+
 ```yaml
 labels:
   tsdproxy.enable: "true"
@@ -114,6 +118,32 @@ labels:
   tsdproxy.port.4: "82/http->https://othersite.com"
 ```
 
+#### Multi-port container tip (AdGuard, etc.)
+
+Containers with many exposed ports (for example DNS + web UI ports) may resolve
+the wrong backend if autodetection is enabled.
+
+Use an explicit port label and disable autodetection:
+
+```yaml
+labels:
+  tsdproxy.enable: "true"
+  tsdproxy.name: "adguard"
+  tsdproxy.autodetect: "false"
+  tsdproxy.port.1: "443/https:80/http"
+```
+
+Also publish the UI port on the host (example `18000:80`) so TSDProxy can map
+the configured container port (`80`) to a reachable host port:
+
+```yaml
+ports:
+  - "18000:80"
+```
+
+This results in TSDProxy targeting `http://host.docker.internal:18000` when
+using the default Docker target hostname.
+
 #### Port options
 
 | Option | Description |
@@ -159,6 +189,8 @@ labels:
   tsdproxy.name: "myserver"
   tsdproxy.tsnet_verbose: "true"
 ```
+
+Useful for debugging Tailscale/tsnet startup, auth, and certificate behavior.
 
 {{% /details %}}
 {{% details title="tsdproxy.authkey" %}}
