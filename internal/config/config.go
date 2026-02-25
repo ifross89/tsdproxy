@@ -25,6 +25,7 @@ type (
 		Tailscale TailscaleProxyProviderConfig           `yaml:"tailscale"`
 
 		HTTP HTTPConfig `yaml:"http"`
+		LAN  LANConfig  `yaml:"lanListener"`
 		Log  LogConfig  `yaml:"log"`
 
 		ProxyAccessLog bool `validate:"boolean" default:"true" yaml:"proxyAccessLog"`
@@ -40,6 +41,13 @@ type (
 	HTTPConfig struct {
 		Hostname string `validate:"ip|hostname,required" default:"0.0.0.0" yaml:"hostname"`
 		Port     uint16 `validate:"numeric,min=1,max=65535,required" default:"8080" yaml:"port"`
+	}
+
+	// LANConfig stores LAN listener configuration.
+	LANConfig struct {
+		Enabled  bool   `validate:"boolean" default:"true" yaml:"enabled"`
+		Hostname string `validate:"ip|hostname,required" default:"0.0.0.0" yaml:"hostname"`
+		Port     uint16 `validate:"numeric,min=1,max=65535,required" default:"443" yaml:"port"`
 	}
 
 	// DockerTargetProviderConfig struct stores Docker target provider configuration.

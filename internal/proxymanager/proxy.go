@@ -5,6 +5,7 @@ package proxymanager
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -111,6 +112,37 @@ func (proxy *Proxy) GetURL() string {
 
 func (proxy *Proxy) GetAuthURL() string {
 	return proxy.providerProxy.GetAuthURL()
+}
+
+func (proxy *Proxy) GetTLSCertificate(hostname string) (*tls.Certificate, error) {
+	return proxy.providerProxy.GetTLSCertificate(hostname)
+}
+
+func (proxy *Proxy) GetLANHandler() (http.Handler, error) {
+	proxy.mtx.RLock()
+	defer proxy.mtx.RUnlock()
+
+	var selected *port
+	nonRedirectCount := 0
+
+	for name, p := range proxy.ports {
+		cfg, ok := proxy.Config.Ports[name]
+		if !ok || cfg.IsRedirect {
+			continue
+		}
+
+		nonRedirectCount++
+		selected = p
+	}
+
+	if nonRedirectCount != 1 {
+		return nil, fmt.Errorf("LANListener requires exactly one non-redirect endpoint per target (proxy=%s count=%d)", proxy.Config.Hostname, nonRedirectCount)
+	}
+	if selected == nil || selected.handler == nil {
+		return nil, fmt.Errorf("LANListener endpoint handler not found for proxy=%s", proxy.Config.Hostname)
+	}
+
+	return selected.handler, nil
 }
 
 func (proxy *Proxy) ProviderUserMiddleware(next http.Handler) http.Handler {

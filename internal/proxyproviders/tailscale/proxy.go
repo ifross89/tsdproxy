@@ -5,6 +5,7 @@ package tailscale
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"net/http"
@@ -34,6 +35,7 @@ type Proxy struct {
 	authURL string
 	url     string
 	status  model.ProxyStatus
+	certs   map[string]*tls.Certificate
 
 	mtx sync.Mutex
 }
@@ -106,6 +108,40 @@ func (p *Proxy) GetListener(port string) (net.Listener, error) {
 
 func (p *Proxy) WatchEvents() chan model.ProxyEvent {
 	return p.events
+}
+
+func (p *Proxy) GetTLSCertificate(serverName string) (*tls.Certificate, error) {
+	p.mtx.Lock()
+	cert, ok := p.certs[serverName]
+	ctx := p.ctx
+	lc := p.lc
+	p.mtx.Unlock()
+	if ok && cert != nil {
+		return cert, nil
+	}
+
+	if lc == nil || ctx == nil {
+		return nil, errors.New("tailscale local client not ready")
+	}
+
+	certPEM, keyPEM, err := lc.CertPair(ctx, serverName)
+	if err != nil {
+		return nil, err
+	}
+
+	parsed, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	p.mtx.Lock()
+	if p.certs == nil {
+		p.certs = make(map[string]*tls.Certificate)
+	}
+	p.certs[serverName] = &parsed
+	p.mtx.Unlock()
+
+	return &parsed, nil
 }
 
 func (p *Proxy) GetAuthURL() string {

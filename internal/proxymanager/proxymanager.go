@@ -6,6 +6,7 @@ package proxymanager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -34,6 +35,7 @@ type (
 		ProxyProviders  ProxyProviderList
 
 		statusSubscribers map[chan model.ProxyEvent]struct{}
+		lanListener       *lanListener
 
 		mtx sync.RWMutex
 	}
@@ -73,11 +75,18 @@ func (pm *ProxyManager) Start() {
 		pm.log.Error().Msg("No Target Providers found")
 		return
 	}
+
+	if err := pm.startLANListener(); err != nil {
+		pm.log.Fatal().Err(err).Msg("Error starting LANListener")
+	}
 }
 
 // StopAllProxies method shuts down all proxies.
 func (pm *ProxyManager) StopAllProxies() {
 	pm.log.Info().Msg("Shutdown all proxies")
+	if err := pm.stopLANListener(); err != nil {
+		pm.log.Error().Err(err).Msg("Error stopping LANListener")
+	}
 	wg := sync.WaitGroup{}
 
 	pm.mtx.RLock()
@@ -241,11 +250,14 @@ func (pm *ProxyManager) addProxy(proxy *Proxy) {
 
 // removeProxy method removes a Proxy from the ProxyManager.
 func (pm *ProxyManager) removeProxy(hostname string) {
+	pm.mtx.RLock()
 	proxy, exists := pm.Proxies[hostname]
+	pm.mtx.RUnlock()
 	if !exists {
 		return
 	}
 
+	pm.unregisterLANProxy(hostname)
 	proxy.Close()
 
 	pm.mtx.Lock()
@@ -254,6 +266,59 @@ func (pm *ProxyManager) removeProxy(hostname string) {
 	delete(pm.Proxies, hostname)
 
 	pm.log.Debug().Str("proxy", hostname).Msg("Removed proxy")
+}
+
+func (pm *ProxyManager) startLANListener() error {
+	if !config.Config.LAN.Enabled {
+		return nil
+	}
+
+	addr := fmt.Sprintf("%s:%d", config.Config.LAN.Hostname, config.Config.LAN.Port)
+	ll := newLANListener(pm.log, addr)
+	if err := ll.start(); err != nil {
+		return err
+	}
+
+	pm.mtx.Lock()
+	pm.lanListener = ll
+	pm.mtx.Unlock()
+
+	return nil
+}
+
+func (pm *ProxyManager) stopLANListener() error {
+	pm.mtx.Lock()
+	ll := pm.lanListener
+	pm.lanListener = nil
+	pm.mtx.Unlock()
+
+	if ll == nil {
+		return nil
+	}
+
+	return ll.close(context.Background())
+}
+
+func (pm *ProxyManager) registerLANProxy(proxy *Proxy) error {
+	pm.mtx.RLock()
+	ll := pm.lanListener
+	pm.mtx.RUnlock()
+	if ll == nil {
+		return nil
+	}
+
+	return ll.register(proxy)
+}
+
+func (pm *ProxyManager) unregisterLANProxy(hostname string) {
+	pm.mtx.RLock()
+	ll := pm.lanListener
+	pm.mtx.RUnlock()
+	if ll == nil {
+		return
+	}
+
+	ll.unregister(hostname)
 }
 
 // eventStart method starts a Proxy from a event trigger
@@ -320,6 +385,10 @@ func (pm *ProxyManager) newAndStartProxy(name string, proxyConfig *model.Config)
 	// any status change in proxy will be broadcasted
 	p.onUpdate = func(event model.ProxyEvent) {
 		pm.broadcastStatusEvents(event)
+	}
+
+	if err := pm.registerLANProxy(p); err != nil {
+		pm.log.Fatal().Err(err).Str("proxy", name).Msg("Invalid proxy configuration for LANListener")
 	}
 
 	pm.addProxy(p)

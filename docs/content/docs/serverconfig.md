@@ -39,6 +39,10 @@ tailscale:
 http:
   hostname: 0.0.0.0
   port: 8080
+lanListener:
+  enabled: true # Enable LAN HTTPS listener (default in this fork)
+  hostname: 0.0.0.0 # LAN listener bind address
+  port: 443 # LAN listener bind port
 log:
   level: info # set logging level info, error or trace
   json: false # set to true to enable json logging
@@ -146,5 +150,22 @@ the other interfaces besides the docker internals.
 defaultProxyProvider is the name of the proxy provider to use. (defined in tailscale
 providers section). Any container defined to be proxied will use this provider
 unless it has a specific provider defined label.
+
+### lanListener section
+
+Configures a LAN-facing HTTPS listener that reuses Tailscale certificates and
+routes using the same FQDNs as your Tailscale endpoints.
+
+```yaml  {filename="/config/tsdproxy.yaml"}
+lanListener:
+  enabled: true
+  hostname: 0.0.0.0
+  port: 443
+```
+
+- Enabled by default in this fork.
+- LAN DNS should point the same Tailscale FQDNs to the host running TSDProxy.
+- `LANListener` currently supports HTTPS on port `443` only.
+- Each proxied target must have exactly one non-redirect backend endpoint.
 
 {{% /steps %}}

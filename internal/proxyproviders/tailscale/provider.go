@@ -5,6 +5,7 @@ package tailscale
 
 import (
 	"context"
+	"crypto/tls"
 	"path"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,7 @@ func (c *Client) NewProxy(config *model.Config) (proxyproviders.ProxyInterface, 
 		config:   config,
 		tsServer: tserver,
 		events:   make(chan model.ProxyEvent),
+		certs:    make(map[string]*tls.Certificate),
 	}, nil
 }
 

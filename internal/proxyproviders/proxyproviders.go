@@ -5,6 +5,7 @@ package proxyproviders
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 
@@ -22,6 +23,7 @@ type (
 		Start(context.Context) error
 		Close() error
 		GetListener(port string) (net.Listener, error)
+		GetTLSCertificate(serverName string) (*tls.Certificate, error)
 		GetURL() string
 		GetAuthURL() string
 		WatchEvents() chan model.ProxyEvent

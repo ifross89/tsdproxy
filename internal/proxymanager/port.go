@@ -25,6 +25,7 @@ type port struct {
 	ctx        context.Context
 	listener   net.Listener
 	cancel     context.CancelFunc
+	handler    http.Handler
 	httpServer *http.Server
 	mtx        sync.Mutex
 }
@@ -80,6 +81,7 @@ func newPortProxy(
 		log:        log,
 		ctx:        ctxPort,
 		cancel:     cancel,
+		handler:    handler,
 		httpServer: httpServer,
 	}
 }
@@ -100,6 +102,7 @@ func newPortRedirect(ctx context.Context, pconfig model.PortConfig, log zerolog.
 		log:        log,
 		ctx:        ctxPort,
 		cancel:     cancel,
+		handler:    redirectHTTPServer.Handler,
 		httpServer: redirectHTTPServer,
 	}
 }
